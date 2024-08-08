@@ -1,153 +1,198 @@
-#!/usr/bin/python
-# -*- coding:utf-8 -*-
-# @author  : jhzhong
-# @time    : 2023/12/22 8:23
-# @function: the script is used to do something.
-# @version : V1
+#modified from a script by jhcoco on Github by ben warren
+#last updated 7/30 01:00 AM
+
+#funtion: scrape boss zhipin website for job listings into a csv output file
+
+#Current issues:
+#   - Need a new approach to finding the next box to click on
+#   - Uploading to a database, not just a local csv (not essential)
+
 import datetime
-import time
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from dbutils import DBUtils
+import pandas as pd
+import time
+import random
 
-browser = webdriver.Edge()
-city_map = {
-    "北京": ["北京"],
-    "天津": ["天津"],
-    "山西": ["太原", "阳泉", "晋城", "长治", "临汾", "运城", "忻州", "吕梁", "晋中", "大同", "朔州"],
-    "河北": ["沧州", "石家庄", "唐山", "保定", "廊坊", "衡水", "邯郸", "邢台", "张家口", "辛集", "秦皇岛", "定州",
-             "承德", "涿州"],
-    "山东": ["济南", "淄博", "聊城", "德州", "滨州", "济宁", "菏泽", "枣庄", "烟台", "威海", "泰安", "青岛", "临沂",
-             "莱芜", "东营", "潍坊", "日照"],
-    "河南": ["郑州", "新乡", "鹤壁", "安阳", "焦作", "濮阳", "开封", "驻马店", "商丘", "三门峡", "南阳", "洛阳", "周口",
-             "许昌", "信阳", "漯河", "平顶山", "济源"],
-    "广东": ["珠海", "中山", "肇庆", "深圳", "清远", "揭阳", "江门", "惠州", "河源", "广州", "佛山", "东莞", "潮州",
-             "汕尾", "梅州", "阳江", "云浮", "韶关", "湛江", "汕头", "茂名"],
-    "浙江": ["舟山", "温州", "台州", "绍兴", "衢州", "宁波", "丽水", "金华", "嘉兴", "湖州", "杭州"],
-    "宁夏": ["中卫", "银川", "吴忠", "石嘴山", "固原"],
-    "江苏": ["镇江", "扬州", "盐城", "徐州", "宿迁", "无锡", "苏州", "南通", "南京", "连云港", "淮安", "常州", "泰州"],
-    "湖南": ["长沙", "邵阳", "怀化", "株洲", "张家界", "永州", "益阳", "湘西", "娄底", "衡阳", "郴州", "岳阳", "常德",
-             "湘潭"],
-    "吉林": ["长春", "长春", "通化", "松原", "四平", "辽源", "吉林", "延边", "白山", "白城"],
-    "福建": ["漳州", "厦门", "福州", "三明", "莆田", "宁德", "南平", "龙岩", "泉州"],
-    "甘肃": ["张掖", "陇南", "兰州", "嘉峪关", "白银", "武威", "天水", "庆阳", "平凉", "临夏", "酒泉", "金昌", "甘南",
-             "定西"],
-    "陕西": ["榆林", "西安", "延安", "咸阳", "渭南", "铜川", "商洛", "汉中", "宝鸡", "安康"],
-    "辽宁": ["营口", "铁岭", "沈阳", "盘锦", "辽阳", "锦州", "葫芦岛", "阜新", "抚顺", "丹东", "大连", "朝阳", "本溪",
-             "鞍山"],
-    "江西": ["鹰潭", "宜春", "上饶", "萍乡", "南昌", "景德镇", "吉安", "抚州", "新余", "九江", "赣州"],
-    "黑龙江": ["伊春", "七台河", "牡丹江", "鸡西", "黑河", "鹤岗", "哈尔滨", "大兴安岭", "绥化", "双鸭山", "齐齐哈尔",
-               "佳木斯", "大庆"],
-    "安徽": ["宣城", "铜陵", "六安", "黄山", "淮南", "合肥", "阜阳", "亳州", "安庆", "池州", "宿州", "芜湖", "马鞍山",
-             "淮北", "滁州", "蚌埠"],
-    "湖北": ["孝感", "武汉", "十堰", "荆门", "黄冈", "襄阳", "咸宁", "随州", "黄石", "恩施", "鄂州", "荆州", "宜昌",
-             "潜江", "天门", "神农架", "仙桃"],
-    "青海": ["西宁", "海西", "海东", "玉树", "黄南", "海南", "海北", "果洛"],
-    "新疆": ["乌鲁木齐", "克州", "阿勒泰", "五家渠", "石河子", "伊犁", "吐鲁番", "塔城", "克拉玛依", "喀什", "和田",
-             "哈密", "昌吉", "博尔塔拉", "阿克苏", "巴音郭楞", "阿拉尔", "图木舒克", "铁门关"],
-    "贵州": ["铜仁", "黔东南", "贵阳", "安顺", "遵义", "黔西南", "黔南", "六盘水", "毕节"],
-    "四川": ["遂宁", "攀枝花", "眉山", "凉山", "成都", "巴中", "广安", "自贡", "甘孜", "资阳", "宜宾", "雅安", "内江",
-             "南充", "绵阳", "泸州", "凉山", "乐山", "广元", "甘孜", "德阳", "达州", "阿坝"],
-    "上海": ["上海"],
-    "广西": ["南宁", "贵港", "玉林", "梧州", "钦州", "柳州", "来宾", "贺州", "河池", "桂林", "防城港", "崇左", "北海",
-             "百色"],
-    "西藏": ["拉萨", "山南", "日喀则", "那曲", "林芝", "昌都", "阿里"],
-    "云南": ["昆明", "红河", "大理", "玉溪", "昭通", "西双版纳", "文山", "曲靖", "普洱", "怒江", "临沧", "丽江", "红河",
-             "迪庆", "德宏", "大理", "楚雄", "保山"],
-    "内蒙古": ["呼和浩特", "乌兰察布", "兴安", "赤峰", "呼伦贝尔", "锡林郭勒", "乌海", "通辽", "巴彦淖尔", "阿拉善",
-               "鄂尔多斯", "包头"],
-    "海南": ["海口", "三沙", "三亚", "临高", "五指山", "陵水", "文昌", "万宁", "白沙", "乐东", "澄迈", "屯昌", "定安",
-             "东方", "保亭", "琼中", "琼海", "儋州", "昌江"],
-    "重庆": ["重庆"]
-}
-# 打开 boss 首页
-index_url = 'https://www.zhipin.com/?city=100010000&ka=city-sites-100010000'
-browser.get(index_url)
+import chromedriver_autoinstaller
+chromedriver_autoinstaller.install()
+browser = webdriver.Chrome() 
 
-# 模拟点击 互联网/AI 展示出岗位分类
-show_ele = browser.find_element(by=By.XPATH, value='//*[@id="main"]/div/div[1]/div/div[1]/dl[1]/dd/b')
-show_ele.click()
+#func: get_next_job -> finds the next job card on the page and clicks on it to show details
+def get_next_job():
+        all_jobs_list = browser.find_element(By.CLASS_NAME, 'position-job-list')
+        list_els = all_jobs_list.find_elements(By.TAG_NAME, 'li')
 
-today = datetime.date.today().strftime('%Y-%m-%d')
+        #Locate the element with the class "job-card-box-active"
+        active_job_card_box = browser.find_element(By.CLASS_NAME, 'job-card-box active')
 
-for i in range(85):
-    current_a = browser.find_elements(by=By.XPATH, value='//*[@id="main"]/div/div[1]/div/div[1]/dl[1]/div/ul/li/div/a')[
-        i]
-    current_category = current_a.find_element(by=By.XPATH, value='../../h4').text
-    sub_category = current_a.text
-    print("{}正在抓取{}--{}".format(today, current_category, sub_category))
-    browser.find_elements(by=By.XPATH, value='//*[@id="main"]/div/div[1]/div/div[1]/dl[1]/div/ul/li/div/a')[i].click()
-    # 模拟滑动页面
-    browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    time.sleep(10)
-    # 模拟滑动页面
-    browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    job_detail = browser.find_elements(by=By.XPATH,
-                                       value='//*[@id="wrap"]/div[2]/div[2]/div/div[1]/div[2]/ul/li')
-    for job in job_detail:
-        # 获取数据库连接
-        db = DBUtils('localhost', 'root', '123456', 'spider_db')
-        # 岗位名称
-        try:
-            job_title = job.find_element(by=By.XPATH, value="./div[1]/a/div[1]/span[1]").text.strip()
-        except:
-            continue
-        # 工作地址
-        job_location = job.find_element(by=By.XPATH, value="./div[1]/a/div[1]/span[2]/span").text.strip()
-        # 企业名称
-        job_company = job.find_element(by=By.XPATH, value="./div[1]/div/div[2]/h3/a").text.strip()
-        # 行业类型
-        job_industry = job.find_element(by=By.XPATH, value="./div[1]/div/div[2]/ul/li[1]").text.strip()
-        # 融资情况
-        job_finance = job.find_element(by=By.XPATH, value="./div[1]/div/div[2]/ul/li[2]").text.strip()
-        try:
-            # 企业规模
-            job_scale = job.find_element(by=By.XPATH, value="./div[1]/div/div[2]/ul/li[3]").text.strip()
-        except:
-            job_scale = "无"
-        try:
-            # 企业福利
-            job_welfare = job.find_element(by=By.XPATH, value="./div[2]/div").text.strip()
-        except:
-            job_welfare = '无'
-        # 薪资范围
-        job_salary_range = job.find_element(by=By.XPATH, value="./div[1]/a/div[2]/span[1]").text.strip()
-        # 工作年限
-        job_experience = job.find_element(by=By.XPATH, value="./div[1]/a/div[2]/ul/li[1]").text.strip()
-        # 学历要求
-        job_education = job.find_element(by=By.XPATH, value="./div[1]/a/div[2]/ul/li[2]").text.strip()
-        # 技能要求
-        try:
-            job_skills = ','.join(
-                [skill.text.strip() for skill in job.find_elements(by=By.XPATH, value="./div[2]/ul/li")])
-        except:
-            job_skills = '无'
-        province = ''
-        city = job_location.split('·')[0]
-        for p, cities in city_map.items():
-            if city in cities:
-                province = p
+        #Find the element with the class "job-card-box" just after the "job-card-box-active"
+        target_element = None
+        found_active = False
+
+        for job_card in list_els:
+            if found_active:
+                target_element = job_card
                 break
-        print(current_category, sub_category, job_title, province, job_location, job_company, job_industry, job_finance,
-              job_scale, job_welfare, job_salary_range, job_experience, job_education, job_skills)
-        # 保存到 MySQL 数据库
-        db.insert_data(
-            "insert into job_info(category, sub_category,job_title,province,job_location,job_company,job_industry,job_finance,job_scale,job_welfare,job_salary_range,job_experience,job_education,job_skills,create_time) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-            args=(
-                current_category, sub_category, job_title, province, job_location, job_company, job_industry,
-                job_finance,
-                job_scale, job_welfare, job_salary_range, job_experience, job_education, job_skills, today))
-        db.close()
+            if job_card == active_job_card_box:
+                found_active = True
+
+        #Click on the target element if it exists - otherwise, click the next page
+        if target_element:
+            target_element.click()
+        else:
+            #click on the next page:
+            try:
+                next_page = browser.find_element(By.XPATH, '//*[@id="content"]/div/div[4]/div[1]/div[1]/div/div/a[6]')
+                next_page.click()
+            except Exception as e:
+                print("Couldn't find next page", e)
+
+#func: scrape_jobs -> scrapes the number of jobs specified as num_jobs from the url specified as url
+def scrape_jobs(url, num_jobs):
+    #set browser to chrome
+    index_url = url
+
+    #access url page
+    browser.get(index_url)
+
+    #wait 10 seconds
+    time.sleep(10)
+    listings = []
+
+    titles = []
+    companies = []
+    salaries = []
+    descriptions = []
+    tag_list = []
+    locations = []
+    links = []
+    label_list = []
+
+
+    job_counter = 0
+    #need to click through elements on page to get more details
+    while job_counter < num_jobs:
+        job_details = browser.find_element(By.CLASS_NAME, 'job-detail-box')
+
+        title_el = job_details.find_element(By.CLASS_NAME, 'job-name')
+        salary_el = job_details.find_element(By.CLASS_NAME, 'job-salary')
+        label_el = job_details.find_element(By.CLASS_NAME, 'job-label-list')
+        desc_el = job_details.find_element(By.CLASS_NAME, 'desc')
+        location_el = job_details.find_element(By.CLASS_NAME, 'job-address-desc')
+        link_el = job_details.find_element(By.CLASS_NAME, 'more-job-btn')
+
+        #this contains a city, number of days of work, experience, etc.
+        tags_el = job_details.find_element(By.CLASS_NAME, 'tag-list')
+
+        if title_el:
+            title = title_el.text
+        else:
+            title = None
+
+        if salary_el:
+            salary = salary_el.text
+        else:
+            salary = None
+        
+        if desc_el:
+            desc = desc_el.text
+        else:
+            desc = None
+        
+        if location_el:
+            location = location_el.text
+        else:
+            location = None
+
+        if link_el:
+            link = link_el.text
+        else:
+            link = None
+
+
+        #Iterate through elements with lists (labels and tags)
+        if label_el:
+            list_els = label_el.find_elements(By.TAG_NAME, 'li')
+            labels = [item.text for item in list_els]
+        else:
+            labels = None
+        
+        if tags_el:
+            list_els = tags_el.find_elements(By.TAG_NAME, 'li')
+            tags = [item.text for item in list_els]
+        else:
+            tags = None
+
+
+        #add values to lists
+        titles.append(title)
+        companies.append(company)
+        salaries.append(salary)
+        descriptions.append(desc)
+        tag_list.append(tags)
+        label_list.append(labels)
+        locations.append(location)
+        links.append(link)
+
+        #add 1 to job count
+        job_counter += 1
+
+        print("Job title" + title)
+
+        #click on the next job
+        get_next_job()
+
+        #wait 1 second for render
+        time.sleep(1)
+    
+    #create return dataframe
+    df = pd.DataFrame({
+       "company": companies,
+        "title": titles,
+        "description": descriptions,
+        "salary": salaries,
+        "tags": tag_list,
+        "location": locations,
+        "salary": salaries,
+        "labels": label_list,
+        "link": links
+    })
+
+    return df
+
+#list of companies to scrape
+companies = {
+    "SpeechOcean": "https://www.zhipin.com/gongsi/job/5f112b4b026160051nxy3t8~.html?ka=company-jobs"
+    # "Magic Data": "https://www.zhipin.com/gongsi/job/20487114181789790HJ_0966.html?ka=company-jobs",
+    # "奥睿智创招聘": "https://www.zhipin.com/gongsi/job/49baf7f633b562931HZ73Nm7GFE~.html?ka=company-jobs",
+    # "数据堂": "https://www.zhipin.com/gongsi/job/de5dbc52daf2078c1Hd53Q~~.html?ka=company-jobs",
+    # "MindFlow": "https://www.zhipin.com/gongsi/job/3dc2d9787c8ca5e51HVz3N27Fg~~.html?ka=company-jobs",
+    # "Konvery Data": "https://www.zhipin.com/gongsi/job/a9da50dc31f7fa5a1XRy2Nq-E1o~.html?ka=company-jobs",
+    # "景联文": "https://www.zhipin.com/gongsi/job/d3567367aedd5f810Xx50928Ew~~.html?ka=company-jobs",
+    # "上海爱数": "https://www.zhipin.com/gongsi/job/32bcf535b61457941H1y290~.html?ka=company-jobs",
+    # "致鑫科技": "https://www.zhipin.com/gongsi/job/0289fd3719ffbbfa1XBy29y8EQ~~.html?ka=company-jobs"
+}
+
+#get current datetime
+current_date = datetime.date.today().strftime('%Y-%m-%d')
+
+#set filename to current datetime
+file_name = str(current_date) + "scraped_jobs.csv"
+
+company_dfs = []
+
+for company in companies.keys():
     try:
-        # 退回到首页
-        browser.back()
-        # 模拟点击 互联网/AI 展示出岗位分类
-        show_ele = browser.find_element(by=By.XPATH, value='//*[@id="main"]/div/div[1]/div/div[1]/dl[1]/dd/b')
-        show_ele.click()
-    except:
-        browser.get(index_url)
-        # 模拟点击 互联网/AI 展示出岗位分类
-        show_ele = browser.find_element(by=By.XPATH, value='//*[@id="main"]/div/div[1]/div/div[1]/dl[1]/dd/b')
-        show_ele.click()
-time.sleep(10)
+        df = scrape_jobs(companies[company], 10)
+        company_dfs.append(df)
+    except Exception as e:
+        print("Failed to scrape" + company + "Exception:" + str(e))
+
+#add all the dfs together
+final_df = pd.concat(company_dfs)
+
+#download to csv
+final_df.to_csv("/Users/benwarren/Downloads/zhipin_data/zhipin_data_download_1.csv")
+    
