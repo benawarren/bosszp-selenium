@@ -12,6 +12,7 @@ import pandas as pd
 import time
 import func_timeout
 from func_timeout import func_timeout
+from selenium.common.exceptions import StaleElementReferenceException
 
 import chromedriver_autoinstaller
 chromedriver_autoinstaller.install()
@@ -19,7 +20,7 @@ browser = webdriver.Chrome()
 
 
 #func: scrape_jobs -> scrapes the number of jobs specified as num_jobs from the url specified as url
-def scrape_jobs(url, num_jobs):
+def scrape_jobs(url):
     # Set browser to chrome
     index_url = url
     browser.get(index_url)
@@ -29,6 +30,11 @@ def scrape_jobs(url, num_jobs):
     WebDriverWait(browser, 10).until(
         EC.presence_of_element_located((By.CLASS_NAME, 'position-job-list'))
     )
+
+    #number of recruiting positions listed
+    num_jobs_el = browser.find_element(By.XPATH, '//*[@id="content"]/div/div[1]/div/div[1]/span[1]/a/b')
+    num_jobs = int(num_jobs_el.text) if num_jobs_el else 20
+    print("Jobs detected:" + str(num_jobs))
 
     titles = []
     companies = []
@@ -40,80 +46,108 @@ def scrape_jobs(url, num_jobs):
     label_list = []
 
     job_counter = 0
+    page_num = 1
     clicked_jobs = set()  # To track clicked job elements
 
     while job_counter < num_jobs:
+        if job_counter % 15 == 0 and job_counter > 0:
+            page_num += 1
+            next_page_url = url.split('~')[0] + "html?page=" + str(page_num)
+            browser.get(next_page_url)
+            print("Navigated to next page")
+
         # Re-find the job list each iteration to ensure it's fresh
-        all_jobs_list = browser.find_element(By.CLASS_NAME, 'position-job-list')
-        list_els = all_jobs_list.find_elements(By.TAG_NAME, 'li')
+        try:
+            all_jobs_list = browser.find_element(By.CLASS_NAME, 'position-job-list')
+            list_els = all_jobs_list.find_elements(By.TAG_NAME, 'li')
+            
+            for internal_counter in range(len(list_els)):
+                #each page holds 15 jobs, so click the next button when 15 jobs have been seen
+                # if job_counter % 15 == 0 and job_counter > 0:
+                #     page_num += 1
+                #     next_page_url = url.split('~')[0] + "html?page=" + str(page_num)
+                #     browser.get(next_page_url)
+                #     print("Navigated to next page")
+                #     # next_button_xpath = '//*[@id="content"]/div/div[4]/div[1]/div[1]/div/div/a[6]'
+                #     # element = WebDriverWait(browser, 10).until(
+                #     #     EC.element_to_be_clickable((By.XPATH, next_button_xpath)))
+                #     # element.click()
 
-        for internal_counter in range(len(list_els)):
-            target_element = list_els[internal_counter]
+                #     # # WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, next_button_xpath))).click()
+                #     # print("Next page clicked")
 
-            # Check if the element has already been clicked
-            if target_element in clicked_jobs:
-                continue  # Skip if already clicked
-
-            if target_element:
-                target_element.click()
-                print("Clicked")
+                if internal_counter > 15:
+                    break
                 
-                # Add the element to the set of clicked jobs
-                clicked_jobs.add(target_element)
+                target_element = list_els[internal_counter]
 
-                # Explicit wait until job details are visible
-                WebDriverWait(browser, 10).until(
-                    EC.presence_of_element_located((By.CLASS_NAME, 'job-detail-box'))
-                )
-                WebDriverWait(browser, 10).until(
-                    EC.presence_of_element_located((By.CLASS_NAME, 'job-detail-body'))
-                )
-            else:
-                continue
+                # Check if the element has already been clicked
+                if target_element in clicked_jobs:
+                    continue  # Skip if already clicked
 
-            job_details = browser.find_element(By.CLASS_NAME, 'job-detail-box')
-            job_body = browser.find_element(By.CLASS_NAME, 'job-detail-body')
+                if target_element:
+                    target_element.click()
+                    print("Clicked")
+                    
+                    # Add the element to the set of clicked jobs
+                    clicked_jobs.add(target_element)
 
-            title_el = job_details.find_element(By.CLASS_NAME, 'job-name')
-            salary_el = job_details.find_element(By.CLASS_NAME, 'job-salary')
-            label_el = job_details.find_element(By.CLASS_NAME, 'job-label-list')
-            desc_el = job_details.find_element(By.CLASS_NAME, 'desc')
-            location_el = job_details.find_element(By.CLASS_NAME, 'job-address-desc')
-            link_el = job_body.find_element(By.CLASS_NAME, 'more-job-btn')
+                    # Explicit wait until job details are visible
+                    WebDriverWait(browser, 10).until(
+                        EC.presence_of_element_located((By.CLASS_NAME, 'job-detail-box'))
+                    )
+                    WebDriverWait(browser, 10).until(
+                        EC.presence_of_element_located((By.CLASS_NAME, 'job-detail-body'))
+                    )
+                else:
+                    continue
 
-            tags_el = job_details.find_element(By.CLASS_NAME, 'tag-list')
+                job_details = browser.find_element(By.CLASS_NAME, 'job-detail-box')
+                job_body = browser.find_element(By.CLASS_NAME, 'job-detail-body')
 
-            # Extracting details
-            title = title_el.text if title_el else None
-            salary = salary_el.text if salary_el else None
-            desc = desc_el.text if desc_el else None
-            location = location_el.text if location_el else None
-            link = link_el.get_attribute("href") if link_el else None
+                title_el = job_details.find_element(By.CLASS_NAME, 'job-name')
+                salary_el = job_details.find_element(By.CLASS_NAME, 'job-salary')
+                label_el = job_details.find_element(By.CLASS_NAME, 'job-label-list')
+                desc_el = job_details.find_element(By.CLASS_NAME, 'desc')
+                location_el = job_details.find_element(By.CLASS_NAME, 'job-address-desc')
+                link_el = job_body.find_element(By.CLASS_NAME, 'more-job-btn')
 
-            labels = [item.text for item in label_el.find_elements(By.TAG_NAME, 'li')] if label_el else None
-            tags = [item.text for item in tags_el.find_elements(By.TAG_NAME, 'li')] if tags_el else None
+                tags_el = job_details.find_element(By.CLASS_NAME, 'tag-list')
 
-            # Append to lists
-            titles.append(title)
-            salaries.append(salary)
-            descriptions.append(desc)
-            tag_list.append(tags)
-            label_list.append(labels)
-            locations.append(location)
-            links.append(link)
-            companies.append(company)
+                # Extracting details
+                title = title_el.text if title_el else None
+                salary = salary_el.text if salary_el else None
+                desc = desc_el.text if desc_el else None
+                location = location_el.text if location_el else None
+                link = link_el.get_attribute("href") if link_el else None
 
-            job_counter += 1
-            print(f"Scraped {job_counter} job(s)")
+                labels = [item.text for item in label_el.find_elements(By.TAG_NAME, 'li')] if label_el else None
+                tags = [item.text for item in tags_el.find_elements(By.TAG_NAME, 'li')] if tags_el else None
 
-            if job_counter >= num_jobs:
-                break
+                # Append to lists
+                titles.append(title)
+                salaries.append(salary)
+                descriptions.append(desc)
+                tag_list.append(tags)
+                label_list.append(labels)
+                locations.append(location)
+                links.append(link)
+                companies.append(company)
 
-            # Wait a bit before moving to the next job
-            time.sleep(1)
+                job_counter += 1
+                print(f"Scraped {job_counter} job(s)")
+
+                if job_counter >= num_jobs:
+                    break
+        except StaleElementReferenceException:
+            print("Encountered stale element, skipping this job.")
+            continue
+
+            # # Wait a bit before moving to the next job
+            # time.sleep(1)
 
         # Scroll the page to load more jobs if needed
-        browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        browser.execute_script("window.scrollTo(0, window.innerHeight);")
 
     # Create return dataframe
     df = pd.DataFrame({
@@ -133,14 +167,14 @@ def scrape_jobs(url, num_jobs):
 #list of companies to scrape
 companies = {
     "SpeechOcean": "https://www.zhipin.com/gongsi/job/5f112b4b026160051nxy3t8~.html?ka=company-jobs",
-    "Magic Data": "https://www.zhipin.com/gongsi/job/20487114181789790HJ_0966.html?ka=company-jobs",
-    # "奥睿智创招聘": "https://www.zhipin.com/gongsi/job/49baf7f633b562931HZ73Nm7GFE~.html?ka=company-jobs",
-    "数据堂": "https://www.zhipin.com/gongsi/job/de5dbc52daf2078c1Hd53Q~~.html?ka=company-jobs",
-    "MindFlow": "https://www.zhipin.com/gongsi/job/3dc2d9787c8ca5e51HVz3N27Fg~~.html?ka=company-jobs",
-    "Konvery Data": "https://www.zhipin.com/gongsi/job/a9da50dc31f7fa5a1XRy2Nq-E1o~.html?ka=company-jobs",
-    "景联文": "https://www.zhipin.com/gongsi/job/d3567367aedd5f810Xx50928Ew~~.html?ka=company-jobs",
-    "上海爱数": "https://www.zhipin.com/gongsi/job/32bcf535b61457941H1y290~.html?ka=company-jobs",
-    "致鑫科技": "https://www.zhipin.com/gongsi/job/0289fd3719ffbbfa1XBy29y8EQ~~.html?ka=company-jobs"
+    # "Magic Data": "https://www.zhipin.com/gongsi/job/20487114181789790HJ_0966.html?ka=company-jobs",
+    # # "奥睿智创招聘": "https://www.zhipin.com/gongsi/job/49baf7f633b562931HZ73Nm7GFE~.html?ka=company-jobs",
+    # "数据堂": "https://www.zhipin.com/gongsi/job/de5dbc52daf2078c1Hd53Q~~.html?ka=company-jobs",
+    # "MindFlow": "https://www.zhipin.com/gongsi/job/3dc2d9787c8ca5e51HVz3N27Fg~~.html?ka=company-jobs",
+    # "Konvery Data": "https://www.zhipin.com/gongsi/job/a9da50dc31f7fa5a1XRy2Nq-E1o~.html?ka=company-jobs",
+    # "景联文": "https://www.zhipin.com/gongsi/job/d3567367aedd5f810Xx50928Ew~~.html?ka=company-jobs",
+    # "上海爱数": "https://www.zhipin.com/gongsi/job/32bcf535b61457941H1y290~.html?ka=company-jobs",
+    # "致鑫科技": "https://www.zhipin.com/gongsi/job/0289fd3719ffbbfa1XBy29y8EQ~~.html?ka=company-jobs"
 }
 
 #get current datetime
@@ -154,7 +188,8 @@ company_dfs = []
 for company in companies.keys():
     print("Scraping jobs from " + company)
     try:
-        df = func_timeout(60, scrape_jobs, args=(companies[company], 20))
+        # df = func_timeout(60, scrape_jobs, args=((companies[company])))
+        df = scrape_jobs(companies[company])
         company_dfs.append(df)
     except Exception as e:
         print("Failed to scrape" + company + "Exception:" + str(e))
