@@ -4,6 +4,7 @@
 #funtion: scrape boss zhipin website for job listings into a csv output file
 
 import datetime
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -114,6 +115,7 @@ def scrape_jobs(url, num_jobs):
 
         # Scroll the page to load more jobs if needed
         browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(5)
 
     # Create return dataframe
     df = pd.DataFrame({
@@ -134,7 +136,6 @@ def scrape_jobs(url, num_jobs):
 companies = {
     "SpeechOcean": "https://www.zhipin.com/gongsi/job/5f112b4b026160051nxy3t8~.html?ka=company-jobs",
     "Magic Data": "https://www.zhipin.com/gongsi/job/20487114181789790HJ_0966.html?ka=company-jobs",
-    # "奥睿智创招聘": "https://www.zhipin.com/gongsi/job/49baf7f633b562931HZ73Nm7GFE~.html?ka=company-jobs",
     "数据堂": "https://www.zhipin.com/gongsi/job/de5dbc52daf2078c1Hd53Q~~.html?ka=company-jobs",
     "MindFlow": "https://www.zhipin.com/gongsi/job/3dc2d9787c8ca5e51HVz3N27Fg~~.html?ka=company-jobs",
     "Konvery Data": "https://www.zhipin.com/gongsi/job/a9da50dc31f7fa5a1XRy2Nq-E1o~.html?ka=company-jobs",
@@ -145,9 +146,14 @@ companies = {
 
 #get current datetime
 current_date = datetime.date.today().strftime('%Y-%m-%d')
+current_time = datetime.datetime.now()
+formatted_time = current_time.strftime('%H:%M:%S')
+
+with open('log_file', 'w+') as file:
+    file.write(formatted_time) 
 
 #set filename to current datetime
-file_name = "/Users/benwarren/Downloads/zhipin_data/" + str(current_date) + "_scraped_jobs_full.csv"
+file_name = "/Users/benwarren/Documents/Github/bosszp-selenium/output_data/WeeklyScrape/" + str(current_date) + "_scraped_jobs_full.csv"
 
 company_dfs = []
 
@@ -155,6 +161,7 @@ for company in companies.keys():
     print("Scraping jobs from " + company)
     try:
         df = func_timeout(60, scrape_jobs, args=(companies[company], 20))
+        time.sleep(10)
         company_dfs.append(df)
     except Exception as e:
         print("Failed to scrape" + company + "Exception:" + str(e))
@@ -162,6 +169,7 @@ for company in companies.keys():
 
 #add all the dfs together
 final_df = pd.concat(company_dfs)
+final_df.reset_index(inplace=True)
 
 no_dupes = final_df.drop_duplicates(subset='link')
 
