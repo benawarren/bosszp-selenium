@@ -32,4 +32,4 @@ def translate_file(file_path):
 
 
 #translate the latest file by path here
-translate_file('/Users/benwarren/Documents/GitHub/bossz-selenium/output_data/WeeklyScrape/2024-08-21_scraped_jobs_full.csv')
+translate_file('/Users/benwarren/Documents/GitHub/bosszp-selenium/output_data/master_file_updated_2024-08-22.csv')
